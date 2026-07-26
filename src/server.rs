@@ -27,15 +27,41 @@ pub async fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
             return Ok(());
         }
 
-        let request = String::from_utf8_lossy(&buffer[..n]);
-        println!("Received: {request}");
+        let input = &buffer[..n];
 
-        if request.to_ascii_uppercase().contains("PING") {
-            let response = Resp::SimpleString("PONG".to_string());
-            stream.write_all(&response.encode()).await?;
-        } else {
-            let response = Resp::Error("ERR unknown command".to_string());
-            stream.write_all(&response.encode()).await?;
-        }
+        println!("Received bytes: {input:?}");
+
+        let response = match Resp::parse(input) {
+            Ok(Resp::Array(items)) => handle_array_command(items),
+            Ok(_) => Resp::Error("ERR expected command array".to_string()),
+            Err(err) => Resp::Error(format!("ERR {err}")),
+        };
+
+        stream.write_all(&response.encode()).await?;
+    }
+}
+
+// Converts a RESP array into a Redis command response.
+// For now, we only support PING.
+fn handle_array_command(items: Vec<Resp>) -> Resp {
+    // Empty arrays are not valid commands.
+    if items.is_empty() {
+        return Resp::Error("ERR empty command".to_string());
+    }
+
+    // Redis commands arrive as arrays of bulk strings.
+    let command = match &items[0] {
+        Resp::BulkString(bytes) => String::from_utf8_lossy(bytes).to_ascii_uppercase(),
+        _ => return Resp::Error("ERR command must be a bulk string".to_string()),
+    };
+
+    match command.as_str() {
+        // Respond to Redis PING command.
+        "PING" => Resp::SimpleString("PONG".to_string()),
+        
+        // Basic placeholder for Redis HELLO command.
+        // Real Redis returns server/protocol metadata, but for now we can return OK.
+        "HELLO" => Resp::SimpleString("OK".to_string()),
+        _ => Resp::Error("ERR unknown command".to_string()),
     }
 }

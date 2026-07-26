@@ -85,7 +85,7 @@ fn parse_array(input: &[u8], pos: &mut usize) -> Result<Resp, String> {
     if len < 0 {
         return Err("negative array length is not supported".to_string());
     }
-    
+
     let mut items = Vec::new();
 
     // Parse each item inside the array.
@@ -139,27 +139,26 @@ fn read_number(input: &[u8], pos: &mut usize) -> Result<i64, String> {
     let start = *pos;
 
     //Move until we find \r\n.
-    while *pos +1 < input.len() {
+    while *pos + 1 < input.len() {
         if input[*pos] == b'\r' && input[*pos + 1] == b'\n' {
             let number_bytes = &input[start..*pos];
-            
-            //Convert bytes into text. 
+
+            //Convert bytes into text.
             let number_text = std::str::from_utf8(number_bytes)
                 .map_err(|_| "number is not valid utf-8".to_string())?;
 
             //skip the \r\n.
-            *pos +=2;
+            *pos += 2;
 
             return number_text
                 .parse::<i64>()
-                .map_err(|_| format!("invalid number: {number_text}"))
+                .map_err(|_| format!("invalid number: {number_text}"));
         }
         *pos += 1;
     }
 
     Err("missing CRLF after number".to_string())
 }
-
 
 // Verifies the next two bytes are \r\n, then advances pos.
 fn expect_crlf(input: &[u8], pos: &mut usize) -> Result<(), String> {
