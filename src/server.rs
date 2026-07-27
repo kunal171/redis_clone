@@ -1,4 +1,5 @@
 use crate::resp::Resp;
+use crate::command::Command;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -32,8 +33,10 @@ pub async fn handle_client(mut stream: TcpStream) -> std::io::Result<()> {
         println!("Received bytes: {input:?}");
 
         let response = match Resp::parse(input) {
-            Ok(Resp::Array(items)) => handle_array_command(items),
-            Ok(_) => Resp::Error("ERR expected command array".to_string()),
+            // Convert parsed RESP into a command, then execute it.
+            Ok(resp) => Command::from_resp(resp).execute(),
+
+            // If parsing fails, return a Redis-style error.
             Err(err) => Resp::Error(format!("ERR {err}")),
         };
 
