@@ -1,5 +1,5 @@
-use crate::resp::Resp;
 use crate::command::Command;
+use crate::resp::Resp;
 use crate::store::Store;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -46,4 +46,3 @@ pub async fn handle_client(mut stream: TcpStream, store: Store) -> std::io::Resu
         stream.write_all(&response.encode()).await?;
     }
 }
-

@@ -1,32 +1,30 @@
 use crate::resp::Resp;
 use crate::store::Store;
 
-//Represent commands that our Redis clone understands. 
+//Represent commands that our Redis clone understands.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     //Ping Return PONG
-    Ping, 
+    Ping,
 
     // ECHO returns the same message back.
     Echo(String),
 
     // Store a key-value pair.
-    Set {key: String, value: String},
+    Set { key: String, value: String },
 
     // Read a value by key
-    Get {key: String},
+    Get { key: String },
 
     // Delete the Key value
+    Delete { key: String },
 
-    Delete {key: String},
-
-     // Unknown command name or invalid arguments.
+    // Unknown command name or invalid arguments.
     Unknown(String),
 }
 
 impl Command {
-     
-    // Convert a Resp array into a Command. 
+    // Convert a Resp array into a Command.
 
     pub fn from_resp(resp: Resp) -> Command {
         let items = match resp {
@@ -39,7 +37,7 @@ impl Command {
         }
 
         let command_name = match bulk_string_to_string(&items[0]) {
-            Some(name) => name.to_ascii_uppercase(), 
+            Some(name) => name.to_ascii_uppercase(),
             None => return Command::Unknown("command must be a bulk string".to_string()),
         };
 
@@ -74,7 +72,7 @@ impl Command {
                 };
 
                 Command::Set { key, value }
-            },
+            }
 
             "GET" => {
                 // GET needs exactly: GET key
@@ -102,8 +100,7 @@ impl Command {
                 };
 
                 Command::Delete { key }
-            },
-
+            }
 
             other => Command::Unknown(format!("unknown command: {other}")),
         }
