@@ -47,27 +47,3 @@ pub async fn handle_client(mut stream: TcpStream, store: Store) -> std::io::Resu
     }
 }
 
-// Converts a RESP array into a Redis command response.
-// For now, we only support PING.
-fn handle_array_command(items: Vec<Resp>) -> Resp {
-    // Empty arrays are not valid commands.
-    if items.is_empty() {
-        return Resp::Error("ERR empty command".to_string());
-    }
-
-    // Redis commands arrive as arrays of bulk strings.
-    let command = match &items[0] {
-        Resp::BulkString(bytes) => String::from_utf8_lossy(bytes).to_ascii_uppercase(),
-        _ => return Resp::Error("ERR command must be a bulk string".to_string()),
-    };
-
-    match command.as_str() {
-        // Respond to Redis PING command.
-        "PING" => Resp::SimpleString("PONG".to_string()),
-        
-        // Basic placeholder for Redis HELLO command.
-        // Real Redis returns server/protocol metadata, but for now we can return OK.
-        "HELLO" => Resp::SimpleString("OK".to_string()),
-        _ => Resp::Error("ERR unknown command".to_string()),
-    }
-}

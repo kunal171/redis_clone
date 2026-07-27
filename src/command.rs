@@ -90,15 +90,15 @@ impl Command {
                 Command::Get { key }
             }
 
-            "DELETE" => {
-                // DELETE needs exactly: DELETE key
+            "DEL" => {
+                // DEL needs exactly: DEL key
                 if items.len() != 2 {
-                    return Command::Unknown("DELETE expects key".to_string());
+                    return Command::Unknown("DEL expects key".to_string());
                 }
 
                 let key = match bulk_string_to_string(&items[1]) {
                     Some(key) => key,
-                    None => return Command::Unknown("DELETE key must be a bulk string".to_string()),
+                    None => return Command::Unknown("DEL key must be a bulk string".to_string()),
                 };
 
                 Command::Delete { key }
@@ -131,10 +131,11 @@ impl Command {
             }
 
             Command::Delete { key } => {
-                // Return OK if deleted, null if not found.
+                // Redis DEL returns the number of keys removed.
+                // 1 means deleted, 0 means key did not exist.
                 match store.del(&key).await {
-                    true => Resp::SimpleString("OK".to_string()),
-                    false => Resp::Null,
+                    true => Resp::Integer(1),
+                    false => Resp::Integer(0),
                 }
             }
 
