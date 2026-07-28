@@ -28,4 +28,10 @@ impl Store {
         let mut db = self.inner.write().await;
         db.remove(key).is_some()
     }
+
+    pub async fn exists(&self, key: &str) -> bool {
+        //Read lock is enough because we are not modifying map
+        let db = self.inner.read().await;
+        db.contains_key(key)
+    }
 }

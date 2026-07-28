@@ -19,6 +19,9 @@ pub enum Command {
     // Delete the Key value
     Delete { key: String },
 
+    //Check that key Exists
+    Exists { key: String },
+
     // Unknown command name or invalid arguments.
     Unknown(String),
 }
@@ -102,6 +105,22 @@ impl Command {
                 Command::Delete { key }
             }
 
+            "EXISTS" => {
+                // EXISTS needs exactly: EXISTS key
+                if items.len() != 2 {
+                    return Command::Unknown("EXISTS expects key".to_string());
+                }
+
+                let key = match bulk_string_to_string(&items[1]) {
+                    Some(key) => key,
+                    None => {
+                        return Command::Unknown("EXISTS key must be a bulk string".to_string());
+                    }
+                };
+
+                Command::Exists { key }
+            }
+
             other => Command::Unknown(format!("unknown command: {other}")),
         }
     }
@@ -131,6 +150,14 @@ impl Command {
                 // Redis DEL returns the number of keys removed.
                 // 1 means deleted, 0 means key did not exist.
                 match store.del(&key).await {
+                    true => Resp::Integer(1),
+                    false => Resp::Integer(0),
+                }
+            }
+
+            Command::Exists { key } => {
+                //Check the key exists and and return 1 or, 0
+                match store.exists(&key).await {
                     true => Resp::Integer(1),
                     false => Resp::Integer(0),
                 }
