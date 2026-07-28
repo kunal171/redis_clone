@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::btree_map::Values;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -33,5 +34,26 @@ impl Store {
         //Read lock is enough because we are not modifying map
         let db = self.inner.read().await;
         db.contains_key(key)
+    }
+
+    pub async fn incr(&self, key: &str) -> Result<i64, String> {
+        //we need a write lock because INCR may insert or update
+        let mut db = self.inner.write().await;
+        // If the key exists, parse it as an integer.
+        // If it does not exist, Redis treats it as 0.
+
+        let current = match db.get(key) {
+            Some(value) => value
+                .parse::<i64>()
+                .map_err(|_| "value is not an integer or out of range".to_string())?,
+            
+            None => 0,
+        };
+
+        //Add one to the current value.
+        let next = current + 1;
+        db.insert(key.to_string(), next.to_string());
+
+        Ok(next)
     }
 }
