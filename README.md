@@ -77,6 +77,14 @@ src/
   store.rs   # Holds the shared in-memory key-value store.
 ```
 
+## Learning Notes
+
+- [Redis Protocol Notes](docs/RESP.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Supported Commands](docs/COMMANDS.md)
+- [Development Guide](docs/DEVELOPMENT.md)
+- [Roadmap](docs/ROADMAP.md)
+
 ## Next Steps
 
 1. Add `INCR` and numeric string handling.

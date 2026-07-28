@@ -23,7 +23,10 @@ pub enum Command {
     Exists { key: String },
 
     //Adding the Key as integer
-    Incr {key: String},
+    Incr { key: String },
+
+    // Decrease the integer counter.
+    Decr { key: String },
 
     // Unknown command name or invalid arguments.
     Unknown(String),
@@ -140,6 +143,22 @@ impl Command {
                 Command::Incr { key }
             }
 
+            "DECR" => {
+                // DECR needs exactly: DECR key
+                if items.len() != 2 {
+                    return Command::Unknown("DECR expects key".to_string());
+                }
+
+                let key = match bulk_string_to_string(&items[1]) {
+                    Some(key) => key,
+                    None => {
+                        return Command::Unknown("DECR key must be a bulk string".to_string());
+                    }
+                };
+
+                Command::Decr { key }
+            }
+
             other => Command::Unknown(format!("unknown command: {other}")),
         }
     }
@@ -182,12 +201,15 @@ impl Command {
                 }
             }
 
-            Command::Incr { key } => {
-                match store.incr(&key).await {
-                    Ok(value) => Resp::Integer(value),
-                    Err(err) => Resp::Error(format!("ERR {err}"))
-                }
-            }
+            Command::Incr { key } => match store.incr(&key).await {
+                Ok(value) => Resp::Integer(value),
+                Err(err) => Resp::Error(format!("ERR {err}")),
+            },
+
+            Command::Decr { key } => match store.decr(&key).await {
+                Ok(value) => Resp::Integer(value),
+                Err(err) => Resp::Error(format!("ERR {err}")),
+            },
 
             Command::Unknown(message) => Resp::Error(format!("ERR {message}")),
         }

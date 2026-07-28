@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::collections::btree_map::Values;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -39,19 +38,40 @@ impl Store {
     pub async fn incr(&self, key: &str) -> Result<i64, String> {
         //we need a write lock because INCR may insert or update
         let mut db = self.inner.write().await;
-        
+
         // If the key exists, parse it as an integer.
         // If it does not exist, Redis treats it as 0.
         let current = match db.get(key) {
             Some(value) => value
                 .parse::<i64>()
                 .map_err(|_| "value is not an integer or out of range".to_string())?,
-            
+
             None => 0,
         };
 
         //Add one to the current value.
         let next = current + 1;
+        db.insert(key.to_string(), next.to_string());
+
+        Ok(next)
+    }
+
+    pub async fn decr(&self, key: &str) -> Result<i64, String> {
+        // We need a write lock because DECR may insert or update the key.
+        let mut db = self.inner.write().await;
+
+        // If the key exists, parse it as an integer.
+        // If it does not exist, Redis treats it as 0.
+        let current = match db.get(key) {
+            Some(value) => value
+                .parse::<i64>()
+                .map_err(|_| "value is not an integer or out of range".to_string())?,
+
+            None => 0,
+        };
+
+        // Subtract one and store the result as a string.
+        let next = current - 1;
         db.insert(key.to_string(), next.to_string());
 
         Ok(next)
