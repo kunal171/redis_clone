@@ -1,17 +1,20 @@
 # redis_clone
 
-A small Redis-like server written in Rust.
+A small Redis-like in-memory key-value server written in Rust.
 
-This project is currently at the first networking/protocol milestone: it starts a TCP
-server, accepts Redis-style RESP input, and responds to `PING` with `PONG`.
+This project is a learning-focused Redis clone. It speaks the Redis Serialization
+Protocol (RESP), accepts TCP clients with Tokio, and supports a growing set of
+Redis-style commands backed by an in-memory store.
 
 ## What Works Now
 
 - Starts a TCP server on `127.0.0.1:9000`.
 - Accepts multiple client connections with Tokio.
+- Parses RESP arrays and bulk strings.
 - Encodes RESP responses.
-- Responds to Redis-style `PING` commands.
-- Contains an initial in-memory store wrapper using `Arc<RwLock<HashMap<...>>>`.
+- Supports `PING`, `ECHO`, `SET`, `GET`, `DEL`, and `EXISTS`.
+- Stores string keys and values in memory using `Arc<RwLock<HashMap<...>>>`.
+- Shares one store across client connections.
 
 ## Run
 
@@ -29,12 +32,24 @@ redis_clone listening on 127.0.0.1:9000
 
 ```bash
 redis-cli -p 9000 ping
+redis-cli -p 9000 echo hello
+redis-cli -p 9000 set name shady
+redis-cli -p 9000 get name
+redis-cli -p 9000 exists name
+redis-cli -p 9000 del name
+redis-cli -p 9000 exists name
 ```
 
 Expected output:
 
 ```text
 PONG
+"hello"
+OK
+"shady"
+(integer) 1
+(integer) 1
+(integer) 0
 ```
 
 ## Test Without redis-cli
@@ -56,16 +71,16 @@ Expected output:
 ```text
 src/
   main.rs    # Starts the async Tokio runtime and launches the server.
-  server.rs  # Accepts TCP clients and responds to basic commands.
-  resp.rs    # Defines RESP values and encodes them into Redis-compatible bytes.
-  store.rs   # Holds the future shared in-memory key-value store.
+  server.rs  # Accepts TCP clients, parses RESP input, and writes responses.
+  resp.rs    # Defines RESP values and parses/encodes Redis-compatible bytes.
+  command.rs # Converts RESP arrays into commands and executes them.
+  store.rs   # Holds the shared in-memory key-value store.
 ```
 
 ## Next Steps
 
-1. Replace the temporary `contains("PING")` check with a real RESP parser.
-2. Convert parsed RESP arrays into commands such as `PING`, `SET`, and `GET`.
-3. Wire `Store` into the server so clients can save and read keys.
-4. Add support for `DEL`, `EXISTS`, `INCR`, and key expiration.
-5. Add tests for RESP encoding, parsing, command handling, and store behavior.
-
+1. Add `INCR` and numeric string handling.
+2. Support multiple-key variants like `DEL key [key ...]` and `EXISTS key [key ...]`.
+3. Add key expiration with `EXPIRE` and `TTL`.
+4. Add tests for RESP parsing, command handling, and store behavior.
+5. Add append-only persistence and startup replay.
