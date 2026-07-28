@@ -39,9 +39,9 @@ impl Store {
     pub async fn incr(&self, key: &str) -> Result<i64, String> {
         //we need a write lock because INCR may insert or update
         let mut db = self.inner.write().await;
+        
         // If the key exists, parse it as an integer.
         // If it does not exist, Redis treats it as 0.
-
         let current = match db.get(key) {
             Some(value) => value
                 .parse::<i64>()

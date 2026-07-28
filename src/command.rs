@@ -22,6 +22,9 @@ pub enum Command {
     //Check that key Exists
     Exists { key: String },
 
+    //Adding the Key as integer
+    Incr {key: String},
+
     // Unknown command name or invalid arguments.
     Unknown(String),
 }
@@ -121,6 +124,22 @@ impl Command {
                 Command::Exists { key }
             }
 
+            "INCR" => {
+                // INCR needs exactly: INCR key
+                if items.len() != 2 {
+                    return Command::Unknown("INCR expects key".to_string());
+                }
+
+                let key = match bulk_string_to_string(&items[1]) {
+                    Some(key) => key,
+                    None => {
+                        return Command::Unknown("INCR key must be a bulk string".to_string());
+                    }
+                };
+
+                Command::Incr { key }
+            }
+
             other => Command::Unknown(format!("unknown command: {other}")),
         }
     }
@@ -160,6 +179,13 @@ impl Command {
                 match store.exists(&key).await {
                     true => Resp::Integer(1),
                     false => Resp::Integer(0),
+                }
+            }
+
+            Command::Incr { key } => {
+                match store.incr(&key).await {
+                    Ok(value) => Resp::Integer(value),
+                    Err(err) => Resp::Error(format!("ERR {err}"))
                 }
             }
 
