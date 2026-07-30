@@ -1,5 +1,5 @@
 use crate::command::Command;
-use crate::resp::Resp;
+use crate::resp::{ParseFrame, Resp};
 use crate::store::Store;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -22,27 +22,55 @@ pub async fn run(addr: &str, store: Store) -> std::io::Result<()> {
 }
 
 pub async fn handle_client(mut stream: TcpStream, store: Store) -> std::io::Result<()> {
-    let mut buffer = [0_u8; 1024];
+    // Temporary read buffer for each socket read.
+    let mut temp = [0_u8; 1024];
+
+    // Persistent buffer for this client.
+    // It stores bytes across reads until a full RESP command is available.
+    let mut read_buffer = Vec::new();
 
     loop {
-        let n = stream.read(&mut buffer).await?;
+        // Read new bytes from the client.
+        let n = stream.read(&mut temp).await?;
 
+        // n == 0 means the client closed the connection.
         if n == 0 {
             return Ok(());
         }
 
-        let input = &buffer[..n];
+        // Append newly-read bytes to the persistent buffer.
+        read_buffer.extend_from_slice(&temp[..n]);
 
-        println!("Received bytes: {input:?}");
+        // Try to parse and execute as many complete commands as possible.
+        loop {
+            let frame = match Resp::parse_frame(&read_buffer) {
+                Ok(frame) => frame,
+                Err(err) => {
+                    // Protocol error: send error and clear buffer.
+                    let response = Resp::Error(format!("ERR {err}"));
+                    stream.write_all(&response.encode()).await?;
+                    read_buffer.clear();
+                    break;
+                }
+            };
 
-        let response = match Resp::parse(input) {
-            // Convert parsed RESP into a command, then execute it.
-            Ok(resp) => Command::from_resp(resp).execute(store.clone()).await,
+            match frame {
+                ParseFrame::Complete { resp, consumed } => {
+                    // Remove the bytes used by this one command.
+                    read_buffer.drain(..consumed);
 
-            // If parsing fails, return a Redis-style error.
-            Err(err) => Resp::Error(format!("ERR {err}")),
-        };
+                    // Convert RESP into Command, execute it, and write response.
+                    let response = Command::from_resp(resp).execute(store.clone()).await;
+                    stream.write_all(&response.encode()).await?;
 
-        stream.write_all(&response.encode()).await?;
+                    // Continue loop in case more complete commands are buffered.
+                }
+
+                ParseFrame::Incomplete => {
+                    // Wait for the next socket read to complete the command.
+                    break;
+                }
+            }
+        }
     }
 }

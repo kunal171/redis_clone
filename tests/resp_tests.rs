@@ -1,4 +1,4 @@
-use redis_clone::resp::Resp;
+use redis_clone::resp::{ParseFrame, Resp};
 
 #[test]
 fn parses_ping_array() {
@@ -80,4 +80,40 @@ fn encodes_null() {
     let resp = Resp::Null;
 
     assert_eq!(resp.encode(), b"$-1\r\n".to_vec());
+}
+
+#[test]
+fn parse_frame_reports_consumed_bytes() {
+    // Two PING commands are in the same input buffer.
+    let input = b"*1\r\n$4\r\nPING\r\n*1\r\n$4\r\nPING\r\n";
+
+    let parsed = Resp::parse_frame(input);
+
+    assert_eq!(
+        parsed,
+        Ok(ParseFrame::Complete {
+            resp: Resp::Array(vec![Resp::BulkString(b"PING".to_vec())]),
+            consumed: 14,
+        })
+    );
+}
+
+#[test]
+fn parse_frame_reports_incomplete_input() {
+    // This is only the first part of a PING command.
+    let input = b"*1\r\n$4\r\nPI";
+
+    let parsed = Resp::parse_frame(input);
+
+    assert_eq!(parsed, Ok(ParseFrame::Incomplete));
+}
+
+#[test]
+fn parse_rejects_extra_bytes() {
+    // Resp::parse expects exactly one complete RESP value.
+    let input = b"*1\r\n$4\r\nPING\r\n*1\r\n$4\r\nPING\r\n";
+
+    let parsed = Resp::parse(input);
+
+    assert_eq!(parsed, Err("extra bytes after RESP value".to_string()));
 }

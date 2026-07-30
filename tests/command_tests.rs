@@ -53,7 +53,10 @@ fn unknown_command_returns_unknown() {
 
     let command = Command::from_resp(resp);
 
-    assert_eq!(command, Command::Unknown("unknown command: NOPE".to_string()));
+    assert_eq!(
+        command,
+        Command::Unknown("unknown command: NOPE".to_string())
+    );
 }
 
 #[tokio::test]

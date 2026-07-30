@@ -1,3 +1,5 @@
+use crate::resp;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Resp {
     // Example: +OK\r\n
@@ -17,6 +19,17 @@ pub enum Resp {
 
     // Example: $-1\r\n
     Null,
+}
+
+// Result of trying to parse a RESP frame from a byte buffer.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParseFrame {
+    // A full RESP value was parsed.
+    // `consumed` means how many bytes were used from the buffer.
+    Complete { resp: Resp, consumed: usize },
+
+    // The buffer does not contain a full RESP value yet.
+    Incomplete,
 }
 
 impl Resp {
@@ -43,15 +56,46 @@ impl Resp {
         }
     }
 
-    // Parses raw TCP bytes into a RESP value.
-    // For now, this parser supports arrays of bulk strings, which is enough for
-    // Redis commands like PING, SET, and GET.
-    pub fn parse(input: &[u8]) -> Result<Resp, String> {
-        // Keep track of where we are while reading the byte slice.
+    // Parses one RESP frame from a byte buffer.
+    //
+    // This is better than `parse` for TCP servers because TCP can split one
+    // command across multiple reads, or combine multiple commands in one read.
+    pub fn parse_frame(input: &[u8]) -> Result<ParseFrame, String> {
+        // Track how many bytes the parser consumes.
         let mut pos = 0;
 
-        // Parse one RESP value starting at position 0.
-        parse_value(input, &mut pos)
+        match parse_value(input, &mut pos) {
+            // Full value parsed. Return the RESP value and bytes consumed.
+            Ok(resp) => Ok(ParseFrame::Complete {
+                resp,
+                consumed: pos,
+            }),
+            // If parser says input ended early, tell server to wait for more data.
+            Err(err)
+                if err.contains("unexpected end")
+                    || err.contains("incomplete")
+                    || err.contains("missing CRLF") =>
+            {
+                Ok(ParseFrame::Incomplete)
+            }
+            // Other parse errors are real protocol errors.
+            Err(err) => Err(err),
+        }
+    }
+
+    // Convenience function for tests and simple code.
+    // This expects exactly one complete RESP value.
+    pub fn parse(input: &[u8]) -> Result<Resp, String> {
+        match Self::parse_frame(input)? {
+            ParseFrame::Complete { resp, consumed } => {
+                if consumed == input.len() {
+                    Ok(resp)
+                } else {
+                    Err("extra bytes after RESP value".to_string())
+                }
+            }
+            ParseFrame::Incomplete => Err("incomplete RESP value".to_string()),
+        }
     }
 }
 
