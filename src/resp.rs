@@ -1,5 +1,3 @@
-use crate::resp;
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Resp {
     // Example: +OK\r\n
