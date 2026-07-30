@@ -29,6 +29,38 @@ impl Store {
         db.remove(key).is_some()
     }
 
+    pub async fn del_many(&self, keys: &[String]) -> i64 {
+        // Write lock because we are removing keys.
+        let mut db = self.inner.write().await;
+
+        // Count how many keys were actually removed.
+        let mut removed = 0;
+
+        for key in keys {
+            if db.remove(key).is_some() {
+                removed += 1;
+            }
+        }
+
+        removed
+    }
+
+    pub async fn exists_many(&self, keys: &[String]) -> i64 {
+        // Read lock because we are only checking keys.
+        let db = self.inner.read().await;
+
+        // Count how many requested keys are present.
+        let mut count = 0;
+
+        for key in keys {
+            if db.contains_key(key) {
+                count += 1;
+            }
+        }
+
+        count
+    }
+
     pub async fn exists(&self, key: &str) -> bool {
         //Read lock is enough because we are not modifying map
         let db = self.inner.read().await;

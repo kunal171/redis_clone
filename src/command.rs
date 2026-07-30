@@ -16,11 +16,11 @@ pub enum Command {
     // Read a value by key
     Get { key: String },
 
-    // Delete the Key value
-    Delete { key: String },
+    // Delete one or more keys.
+    Delete { keys: Vec<String> },
 
-    //Check that key Exists
-    Exists { key: String },
+    // Count how many of the given keys exist.
+    Exists { keys: Vec<String> },
 
     //Adding the Key as integer
     Incr { key: String },
@@ -98,33 +98,31 @@ impl Command {
             }
 
             "DEL" => {
-                // DEL needs exactly: DEL key
-                if items.len() != 2 {
-                    return Command::Unknown("DEL expects key".to_string());
+                // DEL needs at least one key.
+                if items.len() < 2 {
+                    return Command::Unknown("DEL expects at least one key".to_string());
                 }
 
-                let key = match bulk_string_to_string(&items[1]) {
-                    Some(key) => key,
-                    None => return Command::Unknown("DEL key must be a bulk string".to_string()),
+                let keys = match bulk_string_to_keys(&items[1..]) {
+                    Ok(keys) => keys,
+                    Err(err) => return Command::Unknown(format!("DEL {err}")),
                 };
 
-                Command::Delete { key }
+                Command::Delete { keys }
             }
 
             "EXISTS" => {
-                // EXISTS needs exactly: EXISTS key
-                if items.len() != 2 {
-                    return Command::Unknown("EXISTS expects key".to_string());
+                // EXISTS needs at least one key.
+                if items.len() < 2 {
+                    return Command::Unknown("EXISTS expects at least one key".to_string());
                 }
 
-                let key = match bulk_string_to_string(&items[1]) {
-                    Some(key) => key,
-                    None => {
-                        return Command::Unknown("EXISTS key must be a bulk string".to_string());
-                    }
+                let keys = match bulk_string_to_keys(&items[1..]) {
+                    Ok(keys) => keys,
+                    Err(err) => return Command::Unknown(format!("EXISTS {err}")),
                 };
 
-                Command::Exists { key }
+                Command::Exists { keys }
             }
 
             "INCR" => {
@@ -184,21 +182,16 @@ impl Command {
                 }
             }
 
-            Command::Delete { key } => {
-                // Redis DEL returns the number of keys removed.
-                // 1 means deleted, 0 means key did not exist.
-                match store.del(&key).await {
-                    true => Resp::Integer(1),
-                    false => Resp::Integer(0),
-                }
+            Command::Delete { keys } => {
+                // Redis DEL returns how many keys were removed.
+                let removed = store.del_many(&keys).await;
+                Resp::Integer(removed)
             }
 
-            Command::Exists { key } => {
-                //Check the key exists and and return 1 or, 0
-                match store.exists(&key).await {
-                    true => Resp::Integer(1),
-                    false => Resp::Integer(0),
-                }
+            Command::Exists { keys } => {
+                // Redis EXISTS returns how many requested keys exist.
+                let count = store.exists_many(&keys).await;
+                Resp::Integer(count)
             }
 
             Command::Incr { key } => match store.incr(&key).await {
@@ -221,4 +214,18 @@ fn bulk_string_to_string(resp: &Resp) -> Option<String> {
         Resp::BulkString(bytes) => String::from_utf8(bytes.clone()).ok(),
         _ => None,
     }
+}
+
+// Converts all RESP bulk strings after the command name into keys.
+fn bulk_string_to_keys(items: &[Resp]) -> Result<Vec<String>, String> {
+    let mut keys = Vec::new();
+
+    for item in items {
+        match bulk_string_to_string(item) {
+            Some(key) => keys.push(key),
+            None => return Err("key must be a bulk string".to_string()),
+        }
+    }
+
+    Ok(keys)
 }

@@ -104,3 +104,37 @@ async fn incr_non_integer_returns_error() {
         Err("value is not an integer or out of range".to_string())
     );
 }
+
+#[tokio::test]
+async fn del_many_returns_removed_count() {
+    // Create a fresh store.
+    let store = Store::new();
+
+    // Insert two keys.
+    store.set("a".to_string(), "1".to_string()).await;
+    store.set("b".to_string(), "2".to_string()).await;
+
+    let keys = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+
+    // Only a and b exist, so removed count should be 2.
+    let removed = store.del_many(&keys).await;
+
+    assert_eq!(removed, 2);
+}
+
+#[tokio::test]
+async fn exists_many_returns_existing_count() {
+    // Create a fresh store.
+    let store = Store::new();
+
+    // Insert two keys.
+    store.set("a".to_string(), "1".to_string()).await;
+    store.set("b".to_string(), "2".to_string()).await;
+
+    let keys = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+
+    // Only a and b exist, so count should be 2.
+    let count = store.exists_many(&keys).await;
+
+    assert_eq!(count, 2);
+}
