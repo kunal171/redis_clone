@@ -138,3 +138,41 @@ async fn exists_many_returns_existing_count() {
 
     assert_eq!(count, 2);
 }
+
+#[tokio::test]
+async fn incr_overflow_returns_error() {
+    // Create a fresh store.
+    let store = Store::new();
+
+    // Store the maximum i64 value.
+    store
+        .set("count".to_string(), i64::MAX.to_string())
+        .await;
+
+    // Incrementing i64::MAX would overflow.
+    let result = store.incr("count").await;
+
+    assert_eq!(
+        result,
+        Err("increment or decrement would overflow".to_string())
+    );
+}
+
+#[tokio::test]
+async fn decr_overflow_returns_error() {
+    // Create a fresh store.
+    let store = Store::new();
+
+    // Store the minimum i64 value.
+    store
+        .set("count".to_string(), i64::MIN.to_string())
+        .await;
+
+    // Decrementing i64::MIN would overflow.
+    let result = store.decr("count").await;
+
+    assert_eq!(
+        result,
+        Err("increment or decrement would overflow".to_string())
+    );
+}

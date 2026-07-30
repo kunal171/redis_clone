@@ -82,7 +82,10 @@ impl Store {
         };
 
         //Add one to the current value.
-        let next = current + 1;
+        let next = current
+            .checked_add(1)
+            .ok_or_else(|| "increment or decrement would overflow".to_string())?;
+
         db.insert(key.to_string(), next.to_string());
 
         Ok(next)
@@ -103,7 +106,10 @@ impl Store {
         };
 
         // Subtract one and store the result as a string.
-        let next = current - 1;
+        let next = current
+            .checked_sub(1)
+            .ok_or_else(|| "increment or decrement would overflow".to_string())?;
+        
         db.insert(key.to_string(), next.to_string());
 
         Ok(next)
