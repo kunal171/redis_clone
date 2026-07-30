@@ -32,6 +32,7 @@ pub enum ParseFrame {
     Incomplete,
 }
 
+
 impl Resp {
     pub fn encode(&self) -> Vec<u8> {
         match self {
@@ -60,27 +61,26 @@ impl Resp {
     //
     // This is better than `parse` for TCP servers because TCP can split one
     // command across multiple reads, or combine multiple commands in one read.
-    pub fn parse_frame(input: &[u8]) -> Result<ParseFrame, String> {
+    pub fn parse_frame(input: &[u8])-> Result<ParseFrame, String>{
         // Track how many bytes the parser consumes.
         let mut pos = 0;
 
         match parse_value(input, &mut pos) {
             // Full value parsed. Return the RESP value and bytes consumed.
-            Ok(resp) => Ok(ParseFrame::Complete {
-                resp,
-                consumed: pos,
-            }),
-            // If parser says input ended early, tell server to wait for more data.
+            Ok(resp) => Ok(ParseFrame::Complete { resp, consumed: pos }),
+             // If parser says input ended early, tell server to wait for more data.
             Err(err)
                 if err.contains("unexpected end")
                     || err.contains("incomplete")
-                    || err.contains("missing CRLF") =>
+                    || err.contains("missing CRLF") => 
             {
+
                 Ok(ParseFrame::Incomplete)
             }
-            // Other parse errors are real protocol errors.
+             // Other parse errors are real protocol errors.
             Err(err) => Err(err),
         }
+
     }
 
     // Convenience function for tests and simple code.
@@ -97,10 +97,11 @@ impl Resp {
             ParseFrame::Incomplete => Err("incomplete RESP value".to_string()),
         }
     }
+
 }
 
 fn parse_value(input: &[u8], pos: &mut usize) -> Result<Resp, String> {
-    // Make sure there is at least one byte to inspect.
+    // If no byte is available yet, the frame is incomplete.
     if *pos >= input.len() {
         return Err("unexpected end of input".to_string());
     }
@@ -115,6 +116,8 @@ fn parse_value(input: &[u8], pos: &mut usize) -> Result<Resp, String> {
         // Anything else is unsupported for now.
         other => Err(format!("unsupported RESP type byte: {}", other as char)),
     }
+
+
 }
 
 // Parses an array like: *1\r\n$4\r\nPING\r\n
