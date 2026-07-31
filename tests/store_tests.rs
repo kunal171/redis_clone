@@ -176,3 +176,53 @@ async fn decr_overflow_returns_error() {
         Err("increment or decrement would overflow".to_string())
     );
 }
+
+#[tokio::test]
+async fn expire_existing_key_returns_true() {
+    // Create a fresh store.
+    let store = Store::new();
+
+    // Insert a key.
+    store.set("session".to_string(), "abc".to_string()).await;
+
+    // Expire should succeed for existing key.
+    let result = store.expire("session", 3).await;
+
+    assert_eq!(result, true);
+}
+
+#[tokio::test]
+async fn expire_missing_key_returns_false() {
+    // Create a fresh store.
+    let store = Store::new();
+
+    // Expire should fail for missing key.
+    let result = store.expire("missing", 3).await;
+
+    assert_eq!(result, false);
+}
+
+#[tokio::test]
+async fn ttl_missing_key_returns_negative_two() {
+    // Create a fresh store.
+    let store = Store::new();
+
+    // Redis TTL returns -2 for missing keys.
+    let ttl = store.ttl("missing").await;
+
+    assert_eq!(ttl, -2);
+}
+
+#[tokio::test]
+async fn ttl_key_without_expiry_returns_negative_one() {
+    // Create a fresh store.
+    let store = Store::new();
+
+    // Insert a key without expiry.
+    store.set("name".to_string(), "shady".to_string()).await;
+
+    // Redis TTL returns -1 if key exists but has no expiry.
+    let ttl = store.ttl("name").await;
+
+    assert_eq!(ttl, -1);
+}

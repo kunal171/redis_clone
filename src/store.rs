@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use tokio::sync::RwLock;
 
@@ -196,4 +196,52 @@ impl Store {
             None => false,
         }
     }
+
+    pub async fn expire(&self, key: &str, seconds: u64) -> bool {
+        // Write lock because we may update expiry or remove an expired key.
+        let mut db = self.inner.write().await;
+
+        // Look up the entry.
+        let Some(entry) = db.get_mut(key) else {
+            return false;
+        };
+
+        // If the key already expired, remove it and return false.
+        if Self::is_expired(entry) {
+            db.remove(key);
+            return false;
+        }
+
+        // Set expiry time to now + seconds.
+        entry.expires_at = Some(Instant::now() + Duration::from_secs(seconds));
+
+        true
+    }
+
+    pub async fn ttl(&self, key: &str) -> i64 {
+        // Write lock because we may remove expired keys.
+        let mut db = self.inner.write().await;
+
+        // Missing key means -2 in Redis.
+        let Some(entry) = db.get(key) else {
+            return -2;
+        };
+
+        // Expired key should be removed and treated as missing.
+        if Self::is_expired(entry) {
+            db.remove(key);
+            return -2;
+        }
+
+        // Key exists but has no expiry.
+        let Some(expires_at) = entry.expires_at else {
+            return -1;
+        };
+
+        // Return whole seconds remaining.
+        expires_at
+            .saturating_duration_since(Instant::now())
+            .as_secs() as i64
+    }
+    
 }
