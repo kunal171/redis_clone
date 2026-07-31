@@ -28,6 +28,12 @@ pub enum Command {
     // Decrease the integer counter.
     Decr { key: String },
 
+    // Set a timeout on a key.
+    Expire { key: String, seconds: u64 },
+
+    // Return the remaining time-to-live for a key.
+    Ttl { key: String },
+
     // Unknown command name or invalid arguments.
     Unknown(String),
 }
@@ -157,6 +163,44 @@ impl Command {
                 Command::Decr { key }
             }
 
+            "EXPIRE" => {
+                // EXPIRE needs exactly: EXPIRE key seconds
+                if items.len() != 3 {
+                    return Command::Unknown("EXPIRE expects key and seconds".to_string());
+                }
+
+                let key = match bulk_string_to_string(&items[1]) {
+                    Some(key) => key,
+                    None => return Command::Unknown("EXPIRE key must be a bulk string".to_string()),
+                };
+
+                let seconds_text = match bulk_string_to_string(&items[2]) {
+                    Some(seconds) => seconds,
+                    None => return Command::Unknown("EXPIRE seconds must be a bulk string".to_string()),
+                };
+
+                let seconds = match seconds_text.parse::<u64>() {
+                    Ok(seconds) => seconds,
+                    Err(_) => return Command::Unknown("EXPIRE seconds must be an integer".to_string()),
+                };
+
+                Command::Expire { key, seconds }
+            }
+
+            "TTL" => {
+                // TTL needs exactly: TTL key
+                if items.len() != 2 {
+                    return Command::Unknown("TTL expects key".to_string());
+                }
+
+                let key = match bulk_string_to_string(&items[1]) {
+                    Some(key) => key,
+                    None => return Command::Unknown("TTL key must be a bulk string".to_string()),
+                };
+
+                Command::Ttl { key }
+            }
+
             other => Command::Unknown(format!("unknown command: {other}")),
         }
     }
@@ -203,6 +247,19 @@ impl Command {
                 Ok(value) => Resp::Integer(value),
                 Err(err) => Resp::Error(format!("ERR {err}")),
             },
+            Command::Expire { key, seconds } => {
+                // Redis EXPIRE returns 1 if timeout was set, 0 if key does not exist.
+                if store.expire(&key, seconds).await {
+                    Resp::Integer(1)
+                } else {
+                    Resp::Integer(0)
+                }
+            }
+
+            Command::Ttl { key } => {
+                // Redis TTL returns seconds, -1 for no expiry, or -2 for missing key.
+                Resp::Integer(store.ttl(&key).await)
+            }
 
             Command::Unknown(message) => Resp::Error(format!("ERR {message}")),
         }

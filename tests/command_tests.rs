@@ -112,3 +112,40 @@ async fn execute_incr_returns_incremented_integer() {
     assert_eq!(first, Resp::Integer(1));
     assert_eq!(second, Resp::Integer(2));
 }
+
+
+#[test]
+fn parses_expire_command() {
+    let resp = Resp::Array(vec![
+        Resp::BulkString(b"EXPIRE".to_vec()),
+        Resp::BulkString(b"session".to_vec()),
+        Resp::BulkString(b"3".to_vec()),
+    ]);
+
+    let command = Command::from_resp(resp);
+
+    assert_eq!(
+        command,
+        Command::Expire {
+            key: "session".to_string(),
+            seconds: 3,
+        }
+    );
+}
+
+#[test]
+fn parses_ttl_command() {
+    let resp = Resp::Array(vec![
+        Resp::BulkString(b"TTL".to_vec()),
+        Resp::BulkString(b"session".to_vec()),
+    ]);
+
+    let command = Command::from_resp(resp);
+
+    assert_eq!(
+        command,
+        Command::Ttl {
+            key: "session".to_string(),
+        }
+    );
+}
