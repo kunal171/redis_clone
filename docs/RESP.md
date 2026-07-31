@@ -545,6 +545,12 @@ If the value is not an integer, server responds:
 -ERR value is not an integer or out of range\r\n
 ```
 
+If incrementing or decrementing would overflow, server responds:
+
+```text
+-ERR increment or decrement would overflow\r\n
+```
+
 ### DECR
 
 Client sends:
@@ -578,13 +584,61 @@ If the value is not an integer, server responds:
 -ERR value is not an integer or out of range\r\n
 ```
 
+### EXPIRE
+
+Client sends:
+
+```text
+*3\r\n$6\r\nEXPIRE\r\n$7\r\nsession\r\n$1\r\n3\r\n
+```
+
+Meaning:
+
+```text
+["EXPIRE", "session", "3"]
+```
+
+If the key exists and timeout is set, server responds:
+
+```text
+:1\r\n
+```
+
+If the key does not exist, server responds:
+
+```text
+:0\r\n
+```
+
+### TTL
+
+Client sends:
+
+```text
+*2\r\n$3\r\nTTL\r\n$7\r\nsession\r\n
+```
+
+Meaning:
+
+```text
+["TTL", "session"]
+```
+
+Possible responses:
+
+```text
+:3\r\n   key exists and has about 3 seconds left
+:-1\r\n  key exists but has no expiry
+:-2\r\n  key does not exist
+```
+
 ## How Your Server Handles A Request
 
 The flow in your server is:
 
 ```text
 TCP bytes
--> Resp::parse(...)
+-> Resp::parse_frame(...)
 -> Command::from_resp(...)
 -> Command::execute(...)
 -> Resp::encode(...)
@@ -594,18 +648,45 @@ TCP bytes
 In code, that is roughly:
 
 ```rust
-// Read bytes from the TCP stream.
-let input = &buffer[..n];
+// Append new bytes to this client's persistent read buffer.
+read_buffer.extend_from_slice(&temp[..n]);
 
-// Parse bytes into RESP, convert RESP into a command, execute the command,
-// and produce a RESP response.
-let response = match Resp::parse(input) {
-    Ok(resp) => Command::from_resp(resp).execute(store.clone()).await,
-    Err(err) => Resp::Error(format!("ERR {err}")),
-};
+// Parse all complete frames currently available in the buffer.
+loop {
+    let frame = Resp::parse_frame(&read_buffer)?;
 
-// Encode the RESP response into bytes and send it back to the client.
-stream.write_all(&response.encode()).await?;
+    match frame {
+        ParseFrame::Complete { resp, consumed } => {
+            read_buffer.drain(..consumed);
+
+            let response = Command::from_resp(resp).execute(store.clone()).await;
+            stream.write_all(&response.encode()).await?;
+        }
+        ParseFrame::Incomplete => break,
+    }
+}
+```
+
+This matters because TCP can split one command across multiple reads or put
+multiple commands into one read.
+
+## Pipelining
+
+Redis pipelining means a client sends multiple commands before waiting for
+responses.
+
+Example input:
+
+```text
+*1\r\n$4\r\nPING\r\n*1\r\n$4\r\nPING\r\n
+```
+
+This is two `PING` commands in the same TCP buffer.
+
+Server response:
+
+```text
++PONG\r\n+PONG\r\n
 ```
 
 ## Why redis-cli Works
@@ -675,5 +756,10 @@ GET:
 printf '*2\r\n$3\r\nGET\r\n$4\r\nname\r\n' | nc 127.0.0.1 9000
 ```
 
-Manual `nc` tests are useful because they show the exact bytes your server receives.
+Pipelined PING:
 
+```bash
+printf '*1\r\n$4\r\nPING\r\n*1\r\n$4\r\nPING\r\n' | nc 127.0.0.1 9000
+```
+
+Manual `nc` tests are useful because they show the exact bytes your server receives.

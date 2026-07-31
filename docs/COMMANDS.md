@@ -111,7 +111,7 @@ $-1\r\n
 
 ## DEL
 
-Deletes a key.
+Deletes one or more keys.
 
 Command:
 
@@ -138,14 +138,27 @@ RESP responses:
 :0\r\n
 ```
 
-Current behavior:
+Multi-key example:
 
-- only supports one key
-- real Redis supports one or more keys
+```bash
+redis-cli -p 9000 set a 1
+redis-cli -p 9000 set b 2
+redis-cli -p 9000 del a b c
+```
+
+Expected:
+
+```text
+OK
+OK
+(integer) 2
+```
+
+The return value is a count. It does not say which keys were deleted.
 
 ## EXISTS
 
-Checks whether a key exists.
+Counts how many keys exist.
 
 Command:
 
@@ -165,10 +178,23 @@ If the key does not exist:
 (integer) 0
 ```
 
-Current behavior:
+Multi-key example:
 
-- only supports one key
-- real Redis supports one or more keys and returns the count of existing keys
+```bash
+redis-cli -p 9000 set a 1
+redis-cli -p 9000 set b 2
+redis-cli -p 9000 exists a b c
+```
+
+Expected:
+
+```text
+OK
+OK
+(integer) 2
+```
+
+The return value is a count. It does not say which keys exist.
 
 ## INCR
 
@@ -209,6 +235,12 @@ Response:
 
 ```text
 (error) ERR value is not an integer or out of range
+```
+
+If incrementing would overflow an `i64`, the server returns:
+
+```text
+(error) ERR increment or decrement would overflow
 ```
 
 ## DECR
@@ -252,6 +284,90 @@ Response:
 (error) ERR value is not an integer or out of range
 ```
 
+If decrementing would overflow an `i64`, the server returns:
+
+```text
+(error) ERR increment or decrement would overflow
+```
+
+## EXPIRE
+
+Sets a timeout on a key.
+
+Command:
+
+```bash
+redis-cli -p 9000 expire session 3
+```
+
+If the key exists and the timeout is set:
+
+```text
+(integer) 1
+```
+
+If the key does not exist:
+
+```text
+(integer) 0
+```
+
+After the timeout passes, the key is treated as missing. Expired keys are removed
+lazily when they are accessed.
+
+Example:
+
+```bash
+redis-cli -p 9000 set session abc
+redis-cli -p 9000 expire session 3
+sleep 3
+redis-cli -p 9000 get session
+```
+
+Expected:
+
+```text
+OK
+(integer) 1
+(nil)
+```
+
+## TTL
+
+Returns the remaining time-to-live for a key.
+
+Command:
+
+```bash
+redis-cli -p 9000 ttl session
+```
+
+Possible responses:
+
+```text
+(integer) <seconds>  key exists and has an expiry
+(integer) -1         key exists but has no expiry
+(integer) -2         key does not exist
+```
+
+Example:
+
+```bash
+redis-cli -p 9000 set session abc
+redis-cli -p 9000 ttl session
+redis-cli -p 9000 expire session 3
+redis-cli -p 9000 ttl session
+```
+
+Expected:
+
+```text
+OK
+(integer) -1
+(integer) 1
+(integer) 2 or 3
+```
+
 ## Quick Manual Test
 
 ```bash
@@ -261,7 +377,9 @@ redis-cli -p 9000 get name
 redis-cli -p 9000 exists name
 redis-cli -p 9000 incr count
 redis-cli -p 9000 decr count
-redis-cli -p 9000 del name
+redis-cli -p 9000 expire name 3
+redis-cli -p 9000 ttl name
+redis-cli -p 9000 del name count missing
 redis-cli -p 9000 get name
 ```
 
@@ -275,6 +393,7 @@ OK
 (integer) 1
 (integer) 0
 (integer) 1
+(integer) 2 or 3
+(integer) 2
 (nil)
 ```
-

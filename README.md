@@ -11,10 +11,14 @@ Redis-style commands backed by an in-memory store.
 - Starts a TCP server on `127.0.0.1:9000`.
 - Accepts multiple client connections with Tokio.
 - Parses RESP arrays and bulk strings.
+- Keeps a per-client read buffer for partial reads and pipelined commands.
 - Encodes RESP responses.
-- Supports `PING`, `ECHO`, `SET`, `GET`, `DEL`, and `EXISTS`.
-- Stores string keys and values in memory using `Arc<RwLock<HashMap<...>>>`.
+- Supports `PING`, `ECHO`, `SET`, `GET`, `DEL`, `EXISTS`, `INCR`, `DECR`,
+  `EXPIRE`, and `TTL`.
+- Supports multi-key `DEL` and `EXISTS`.
+- Stores string keys and values in memory with optional expiration times.
 - Shares one store across client connections.
+- Has integration tests for the store, RESP parser/encoder, and command layer.
 
 ## Run
 
@@ -35,9 +39,12 @@ redis-cli -p 9000 ping
 redis-cli -p 9000 echo hello
 redis-cli -p 9000 set name shady
 redis-cli -p 9000 get name
-redis-cli -p 9000 exists name
-redis-cli -p 9000 del name
-redis-cli -p 9000 exists name
+redis-cli -p 9000 incr count
+redis-cli -p 9000 decr count
+redis-cli -p 9000 exists name count missing
+redis-cli -p 9000 expire name 3
+redis-cli -p 9000 ttl name
+redis-cli -p 9000 del name count missing
 ```
 
 Expected output:
@@ -48,8 +55,11 @@ PONG
 OK
 "shady"
 (integer) 1
-(integer) 1
 (integer) 0
+(integer) 2
+(integer) 1
+(integer) 2 or 3
+(integer) 2
 ```
 
 ## Test Without redis-cli
@@ -87,8 +97,8 @@ src/
 
 ## Next Steps
 
-1. Add `INCR` and numeric string handling.
-2. Support multiple-key variants like `DEL key [key ...]` and `EXISTS key [key ...]`.
-3. Add key expiration with `EXPIRE` and `TTL`.
-4. Add tests for RESP parsing, command handling, and store behavior.
-5. Add append-only persistence and startup replay.
+1. Add append-only persistence and startup replay.
+2. Add `SET key value EX seconds` syntax.
+3. Extract shared numeric mutation logic for `INCR` and `DECR`.
+4. Add more command tests for `DEL`, `EXISTS`, `DECR`, `EXPIRE`, and `TTL`.
+5. Add richer data types like lists, sets, and hashes.

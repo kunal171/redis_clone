@@ -22,23 +22,23 @@ Status: done
 
 ## Milestone 3: Numeric Commands
 
-Status: in progress
+Status: done
 
 - Support `INCR`.
 - Support `DECR`.
 - Return Redis-style integer responses.
 - Return Redis-style errors for non-integer values.
-
-Next improvements:
-
 - handle integer overflow with checked arithmetic
+
+Next improvement:
+
 - extract shared increment/decrement logic to reduce duplication
 
 ## Milestone 4: Automated Tests
 
-Status: not started
+Status: done
 
-Add tests for:
+Tests currently cover:
 
 - RESP encoding
 - RESP parsing
@@ -57,13 +57,9 @@ tests/
 
 ## Milestone 5: Better Request Framing
 
-Status: not started
+Status: done
 
-The current server assumes one complete command arrives in one read.
-
-Real TCP does not guarantee that.
-
-Future parser/server work:
+The server now:
 
 - keep a per-client read buffer
 - parse one command at a time from the buffer
@@ -84,23 +80,22 @@ All sent together over one TCP connection.
 
 ## Milestone 6: Expiration
 
-Status: not started
+Status: done
 
-Add:
+Added:
 
 ```text
 EXPIRE key seconds
 TTL key
-SET key value EX seconds
 ```
 
-Storage will need to change from:
+Storage changed from:
 
 ```rust
 HashMap<String, String>
 ```
 
-To something like:
+To:
 
 ```rust
 struct Entry {
@@ -113,6 +108,12 @@ Then:
 
 ```rust
 HashMap<String, Entry>
+```
+
+Remaining expiration improvement:
+
+```text
+SET key value EX seconds
 ```
 
 ## Milestone 7: Persistence
@@ -133,9 +134,24 @@ Commands to persist:
 - `DEL`
 - `INCR`
 - `DECR`
-- expiration commands once added
+- `EXPIRE`
 
-## Milestone 8: More Data Structures
+## Milestone 8: SET Options
+
+Status: not started
+
+Add:
+
+```text
+SET key value EX seconds
+SET key value PX milliseconds
+SET key value NX
+SET key value XX
+```
+
+Start with `EX`, because the store already supports expiration.
+
+## Milestone 9: More Data Structures
 
 Status: not started
 
@@ -166,4 +182,3 @@ enum Value {
     Hash(HashMap<String, String>),
 }
 ```
-

@@ -35,8 +35,12 @@ Run a fuller smoke test:
 ```bash
 redis-cli -p 9000 set name shady
 redis-cli -p 9000 get name
-redis-cli -p 9000 exists name
-redis-cli -p 9000 del name
+redis-cli -p 9000 incr count
+redis-cli -p 9000 decr count
+redis-cli -p 9000 exists name count missing
+redis-cli -p 9000 expire name 3
+redis-cli -p 9000 ttl name
+redis-cli -p 9000 del name count missing
 redis-cli -p 9000 get name
 ```
 
@@ -46,7 +50,11 @@ Expected:
 OK
 "shady"
 (integer) 1
+(integer) 0
+(integer) 2
 (integer) 1
+(integer) 2 or 3
+(integer) 2
 (nil)
 ```
 
@@ -70,6 +78,19 @@ GET:
 
 ```bash
 printf '*2\r\n$3\r\nGET\r\n$4\r\nname\r\n' | nc 127.0.0.1 9000
+```
+
+Pipelined PING commands:
+
+```bash
+printf '*1\r\n$4\r\nPING\r\n*1\r\n$4\r\nPING\r\n' | nc 127.0.0.1 9000
+```
+
+Expected:
+
+```text
++PONG
++PONG
 ```
 
 ## Format
@@ -98,17 +119,16 @@ cargo build
 
 ## Run Tests
 
-There are no automated tests yet. When tests are added, run:
-
 ```bash
 cargo test
 ```
 
-Suggested first tests:
+Current tests cover:
 
 - RESP encoding
 - RESP parsing
 - command parsing
+- command execution
 - store behavior
 
 ## Debugging Protocol Input
@@ -189,4 +209,3 @@ Or:
 ```bash
 printf '*1\r\n$4\r\nPING\r\n' | nc 127.0.0.1 9000
 ```
-

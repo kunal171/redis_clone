@@ -22,7 +22,7 @@ client
   v
 server.rs
   |
-  | Resp::parse(...)
+  | Resp::parse_frame(...)
   v
 resp.rs
   |
@@ -50,17 +50,23 @@ client
 In code, the core server loop looks like this:
 
 ```rust
-// Read raw bytes from the TCP stream.
-let input = &buffer[..n];
+// Append newly-read bytes to this client's persistent buffer.
+read_buffer.extend_from_slice(&temp[..n]);
 
-// Parse the bytes, convert the parsed RESP into a command, and execute it.
-let response = match Resp::parse(input) {
-    Ok(resp) => Command::from_resp(resp).execute(store.clone()).await,
-    Err(err) => Resp::Error(format!("ERR {err}")),
-};
+// Parse and execute complete RESP frames from the buffer.
+loop {
+    let frame = Resp::parse_frame(&read_buffer)?;
 
-// Convert the response back into RESP bytes and send it to the client.
-stream.write_all(&response.encode()).await?;
+    match frame {
+        ParseFrame::Complete { resp, consumed } => {
+            read_buffer.drain(..consumed);
+
+            let response = Command::from_resp(resp).execute(store.clone()).await;
+            stream.write_all(&response.encode()).await?;
+        }
+        ParseFrame::Incomplete => break,
+    }
+}
 ```
 
 ## Modules
@@ -104,6 +110,8 @@ Responsibilities:
 - accept client connections
 - spawn one Tokio task per client
 - read bytes from each TCP stream
+- keep a persistent per-client read buffer
+- support incomplete reads and pipelined commands
 - write RESP responses back to each TCP stream
 
 The server clones `Store` for each client task:
@@ -121,7 +129,7 @@ tokio::spawn(async move {
 This works because `Store` internally uses:
 
 ```rust
-Arc<RwLock<HashMap<String, String>>>
+Arc<RwLock<HashMap<String, Entry>>>
 ```
 
 ## resp.rs
@@ -132,6 +140,8 @@ Responsibilities:
 
 - define RESP values as a Rust enum
 - parse raw bytes into RESP values
+- report how many bytes each parsed frame consumed
+- report incomplete frames when the current TCP buffer does not yet contain a full command
 - encode RESP values back into bytes
 
 The important enum is:
@@ -200,17 +210,28 @@ Responsibilities:
 - delete keys
 - check key existence
 - mutate numeric strings for `INCR` and `DECR`
+- set key expiration with `EXPIRE`
+- report remaining time-to-live with `TTL`
 
 Current storage type:
 
 ```rust
-HashMap<String, String>
+HashMap<String, Entry>
+```
+
+Each entry stores a string value and optional expiry time:
+
+```rust
+pub struct Entry {
+    pub value: String,
+    pub expires_at: Option<Instant>,
+}
 ```
 
 Shared wrapper:
 
 ```rust
-Arc<RwLock<HashMap<String, String>>>
+Arc<RwLock<HashMap<String, Entry>>>
 ```
 
 Why `Arc`:
@@ -226,12 +247,14 @@ Why `RwLock`:
 Examples:
 
 ```text
-GET     -> read lock
-EXISTS  -> read lock
+GET     -> write lock, because expired keys may be removed lazily
+EXISTS  -> write lock, because expired keys may be removed lazily
 SET     -> write lock
 DEL     -> write lock
 INCR    -> write lock
 DECR    -> write lock
+EXPIRE  -> write lock
+TTL     -> write lock, because expired keys may be removed lazily
 ```
 
 ## Current Limitations
@@ -239,12 +262,9 @@ DECR    -> write lock
 The architecture is intentionally simple. Current limitations:
 
 - request reading uses a fixed 1024-byte buffer
-- parser assumes one complete command arrives in one read
-- no command pipelining yet
-- no key expiration yet
 - no persistence yet
+- no `SET EX`/`SET PX` options yet
 - no authentication
 - no clustering or replication
 
 These are good future learning milestones.
-
