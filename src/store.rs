@@ -5,9 +5,9 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 #[derive(Clone)]
-pub struct Entry{
-    pub value:String,
-    pub expires_at: Option<Instant>
+pub struct Entry {
+    pub value: String,
+    pub expires_at: Option<Instant>,
 }
 
 #[derive(Clone)]
@@ -26,7 +26,7 @@ impl Store {
         let mut db = self.inner.write().await;
         let entry = Entry {
             value,
-            expires_at: None
+            expires_at: None,
         };
         db.insert(key, entry);
     }
@@ -35,18 +35,17 @@ impl Store {
         let mut db = self.inner.write().await;
         //look up the entry
         let entry = db.get(key)?;
-        
+
         // If the key has an expiry and that time has passed, remove it.
         if let Some(expires_at) = entry.expires_at {
             if Instant::now() >= expires_at {
                 db.remove(key);
-                return None
+                return None;
             }
         }
 
         // Return a clone copy of the stored string.
         db.get(key).map(|entry| entry.value.clone())
-
     }
 
     pub async fn del(&self, key: &str) -> bool {
@@ -142,7 +141,11 @@ impl Store {
 
         db.insert(
             key.to_string(),
-            Entry { value: next.to_string(), expires_at });
+            Entry {
+                value: next.to_string(),
+                expires_at,
+            },
+        );
 
         Ok(next)
     }
@@ -176,12 +179,12 @@ impl Store {
 
         // DECR preserves expiry in real Redis if the key already exists.
         let expires_at = db.get(key).and_then(|entry| entry.expires_at);
-        
+
         db.insert(
-        key.to_string(),
-        Entry { 
+            key.to_string(),
+            Entry {
                 value: next.to_string(),
-                expires_at 
+                expires_at,
             },
         );
 
@@ -243,5 +246,4 @@ impl Store {
             .saturating_duration_since(Instant::now())
             .as_secs() as i64
     }
-    
 }

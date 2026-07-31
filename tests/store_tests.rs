@@ -145,9 +145,7 @@ async fn incr_overflow_returns_error() {
     let store = Store::new();
 
     // Store the maximum i64 value.
-    store
-        .set("count".to_string(), i64::MAX.to_string())
-        .await;
+    store.set("count".to_string(), i64::MAX.to_string()).await;
 
     // Incrementing i64::MAX would overflow.
     let result = store.incr("count").await;
@@ -164,9 +162,7 @@ async fn decr_overflow_returns_error() {
     let store = Store::new();
 
     // Store the minimum i64 value.
-    store
-        .set("count".to_string(), i64::MIN.to_string())
-        .await;
+    store.set("count".to_string(), i64::MIN.to_string()).await;
 
     // Decrementing i64::MIN would overflow.
     let result = store.decr("count").await;

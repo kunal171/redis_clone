@@ -171,17 +171,23 @@ impl Command {
 
                 let key = match bulk_string_to_string(&items[1]) {
                     Some(key) => key,
-                    None => return Command::Unknown("EXPIRE key must be a bulk string".to_string()),
+                    None => {
+                        return Command::Unknown("EXPIRE key must be a bulk string".to_string());
+                    }
                 };
 
                 let seconds_text = match bulk_string_to_string(&items[2]) {
                     Some(seconds) => seconds,
-                    None => return Command::Unknown("EXPIRE seconds must be a bulk string".to_string()),
+                    None => {
+                        return Command::Unknown("EXPIRE seconds must be a bulk string".to_string());
+                    }
                 };
 
                 let seconds = match seconds_text.parse::<u64>() {
                     Ok(seconds) => seconds,
-                    Err(_) => return Command::Unknown("EXPIRE seconds must be an integer".to_string()),
+                    Err(_) => {
+                        return Command::Unknown("EXPIRE seconds must be an integer".to_string());
+                    }
                 };
 
                 Command::Expire { key, seconds }

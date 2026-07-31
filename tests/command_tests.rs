@@ -113,7 +113,6 @@ async fn execute_incr_returns_incremented_integer() {
     assert_eq!(second, Resp::Integer(2));
 }
 
-
 #[test]
 fn parses_expire_command() {
     let resp = Resp::Array(vec![
